@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Simulator</title>
+    <style>
+        /* Remove margins and set a black background */
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: black;
+            height: 100%;
+            width: 100%;
+        }
+
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Canvas for drawing the simulation -->
+    <canvas id="spaceCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById("spaceCanvas");
+        const ctx = canvas.getContext("2d");
+
+        // Resize canvas to fit the window
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const star = { x: centerX, y: centerY };
+
+        // Define two orbiting planets
+        const planets = [
+            { radius: 100, speed: 0.01, angle: 0, size: 10, color: "blue" },
+            { radius: 300, speed: 0.01, angle: 0, size: 12, color: "red" },
+            { radius: 150, speed: 0.02, angle: 0, size: 7, color: "purple" },
+            { radius: 120, speed: 0.03, angle: 0, size: 5, color: "gray" },
+            { radius: 200, speed: 0.005, angle: Math.PI / 2, size: 15, color: "green" }
+        ];
+
+        const ships = [];
+        let lastLaunchTime = 0;
+        const launchInterval = 3000; // Launch a ship every 3 seconds
+
+        function drawStar() {
+            ctx.fillStyle = "yellow";
+            ctx.beginPath();
+            ctx.arc(star.x, star.y, 20, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawPlanets() {
+            planets.forEach(planet => {
+                planet.angle += planet.speed;
+                const x = star.x + planet.radius * Math.cos(planet.angle);
+                const y = star.y + planet.radius * Math.sin(planet.angle);
+
+                planet.x = x;
+                planet.y = y;
+
+                ctx.fillStyle = planet.color;
+                ctx.beginPath();
+                ctx.arc(x, y, planet.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function launchShip() {
+            // Randomly select origin and destination planets (ensure they are different)
+            let origin = planets[Math.floor(Math.random() * planets.length)];
+            let destination = planets[Math.floor(Math.random() * planets.length)];
+            while (destination === origin) {
+                destination = planets[Math.floor(Math.random() * planets.length)];
+            }
+
+            // Create a ship with initial velocity of zero and acceleration parameters
+            const ship = {
+                x: origin.x,
+                y: origin.y,
+                velocity: { x: 0, y: 0 },
+                acceleration: 0.05, // Change this value to tweak acceleration
+                maxSpeed: 5,        // Maximum speed ship can reach
+                origin: origin,
+                destination: destination,
+            };
+
+            ships.push(ship);
+        }
+
+
+        function updateShips() {
+            // Optional: Limit the number of ships to prevent over-crowding
+            if (ships.length > 10) {
+                ships.splice(0, 3);
+            }
+
+            for (let i = ships.length - 1; i >= 0; i--) {
+                const ship = ships[i];
+                const dest = ship.destination; // The planet we're targeting
+
+                // Compute the vector from ship to planet (current position)
+                const dx = dest.x - ship.x;
+                const dy = dest.y - ship.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                // Estimate time T to intercept assuming the ship travels at maxSpeed
+                // (This is a rough estimation; you may adjust the formula as needed)
+                const T = distance / ship.maxSpeed;
+
+                // Calculate the destination planet's instantaneous velocity
+                // For a circular orbit:
+                //   v_x = -radius * speed * sin(angle)
+                //   v_y =  radius * speed * cos(angle)
+                const planetVx = -dest.radius * dest.speed * Math.sin(dest.angle);
+                const planetVy = dest.radius * dest.speed * Math.cos(dest.angle);
+
+                // Predict the planet's future position after time T
+                const predictedX = dest.x + planetVx * T;
+                const predictedY = dest.y + planetVy * T;
+
+                // Calculate vector from ship to the predicted destination position
+                const pdx = predictedX - ship.x;
+                const pdy = predictedY - ship.y;
+                const predictedDistance = Math.sqrt(pdx * pdx + pdy * pdy);
+
+                // Consider the ship as arrived if it's close enough to the predicted position
+                if (predictedDistance < 30) {
+                    ships.splice(i, 1);
+                    continue;
+                }
+
+                // Normalize the direction vector toward the predicted destination
+                const dirX = pdx / predictedDistance;
+                const dirY = pdy / predictedDistance;
+
+                // Accelerate the ship in the direction of the predicted destination
+                ship.velocity.x += ship.acceleration * dirX;
+                ship.velocity.y += ship.acceleration * dirY;
+
+                // Clamp the ship's velocity to its maximum speed
+                const speed = Math.sqrt(ship.velocity.x * ship.velocity.x + ship.velocity.y * ship.velocity.y);
+                if (speed > ship.maxSpeed) {
+                    ship.velocity.x = (ship.velocity.x / speed) * ship.maxSpeed;
+                    ship.velocity.y = (ship.velocity.y / speed) * ship.maxSpeed;
+                }
+
+                // Update the ship's position based on its velocity
+                ship.x += ship.velocity.x;
+                ship.y += ship.velocity.y;
+            }
+        }
+
+
+
+
+        function drawShips() {
+            ctx.fillStyle = "white";
+            ships.forEach(ship => {
+                ctx.beginPath();
+                ctx.arc(ship.x, ship.y, 5, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function update() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            drawStar();
+            drawPlanets();
+            updateShips();
+            drawShips();
+
+            const currentTime = Date.now();
+            if (currentTime - lastLaunchTime > launchInterval) {
+                launchShip();
+                lastLaunchTime = currentTime;
+            }
+
+            requestAnimationFrame(update);
+        }
+
+        // Start the animation loop
+        update();
+    </script>
+</body>
+
+</html>
